@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 from babel.numbers import format_currency
 
 sns.set(style='whitegrid')
@@ -69,20 +70,20 @@ def create_rfm_df(df):
 
 # Load cleaned data
 @st.cache_data
-def get_data():
-    df = pd.read_csv("main_data.csv")
-    datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date", "order_estimated_delivery_date"]
+@st.cache_data
+def load_data():
+    current_dir = os.path.dirname(__file__)
+    file_path = os.path.join(current_dir, "main_data.csv")
+    df = pd.read_csv(file_path)
+    
+    datetime_columns = ["order_purchase_timestamp", "order_delivered_customer_date"]
     for column in datetime_columns:
         df[column] = pd.to_datetime(df[column])
+    df['delivery_duration'] = (df['order_delivered_customer_date'] - df['order_purchase_timestamp']).dt.days
     
-    df.sort_values(by="order_purchase_timestamp", inplace=True)
-    df['delivery_duration_days'] = (
-        df['order_delivered_customer_date'] - df['order_purchase_timestamp']
-    ).dt.days
-    df.reset_index(drop=True, inplace=True)
     return df
-
-all_df = get_data()
+    
+all_df = load_data()
 
 # Sidebar
 with st.sidebar:
@@ -165,19 +166,21 @@ st.warning("Insight: Kategori 'cine_photo' mengalami penurunan kualitas persepsi
 # --- Section 3: Delivery Efficiency (Q3) ---
 st.write("---")
 st.subheader("3. Efisiensi Waktu Pengiriman (Delivery Time)")
-delivery_stats = ytd_df[ytd_df['order_status']=='delivered'].groupby('year')['delivery_duration_days'].mean().reset_index()
+delivery_stats = ytd_df[ytd_df['order_status']=='delivered'].groupby('year')['delivery_duration'].mean().reset_index()
 
 fig, ax = plt.subplots(figsize=(8, 5))
 sns.barplot(
     data=delivery_stats, 
     x='year', 
-    y='delivery_duration_days', 
+    y='delivery_duration',  
     palette=['#4C72B0', '#C44E52'],
     ax=ax
 )
 ax.set_title("Rata-rata Waktu Pengiriman (Hari)", fontsize=15)
 st.pyplot(fig)
-st.write(f"Rata-rata durasi: **{delivery_stats.iloc[0,1]:.2f} hari** (2017) vs **{delivery_stats.iloc[1,1]:.2f} hari** (2018).")
+
+if len(delivery_stats) > 1:
+    st.write(f"Rata-rata durasi: **{delivery_stats.iloc[0,1]:.2f} hari** (2017) vs **{delivery_stats.iloc[1,1]:.2f} hari** (2018).")
 
 # --- Section 4: Customer Loyalty (Q4) ---
 st.write("---")
